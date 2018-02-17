@@ -1,6 +1,6 @@
-import { Util, setOptions } from 'leaflet';
+import { Util } from 'leaflet';
 import featureLayerService from '../../Services/FeatureLayerService';
-import { cleanUrl, warn, setEsriAttribution } from '../../Util';
+import { getUrlParams, warn, setEsriAttribution } from '../../Util';
 import VirtualGrid from 'leaflet-virtual-grid';
 import BinarySearchIndex from 'tiny-binary-search';
 
@@ -28,8 +28,8 @@ export var FeatureManager = VirtualGrid.extend({
   initialize: function (options) {
     VirtualGrid.prototype.initialize.call(this, options);
 
-    options.url = cleanUrl(options.url);
-    options = setOptions(this, options);
+    options = getUrlParams(options);
+    options = Util.setOptions(this, options);
 
     this.service = featureLayerService(options);
     this.service.addEventParent(this);
@@ -156,7 +156,7 @@ export var FeatureManager = VirtualGrid.extend({
   },
 
   _postProcessFeatures: function (bounds) {
-    // deincriment the request counter now that we have processed features
+    // deincrement the request counter now that we have processed features
     this._activeRequests--;
 
     // if there are no more active requests fire a load event for this view
@@ -177,16 +177,18 @@ export var FeatureManager = VirtualGrid.extend({
 
     for (var i = features.length - 1; i >= 0; i--) {
       var id = features[i].id;
-      this._currentSnapshot.push(id);
-      this._cache[key].push(id);
+
+      if (this._currentSnapshot.indexOf(id) === -1) {
+        this._currentSnapshot.push(id);
+      }
+      if (this._cache[key].indexOf(id) === -1) {
+        this._cache[key].push(id);
+      }
     }
 
     if (this.options.timeField) {
       this._buildTimeIndexes(features);
     }
-
-    // need to PR removal of the logic below too...
-    // https://github.com/patrickarlt/leaflet-virtual-grid/blob/master/src/virtual-grid.js#L100-L102
 
     this.createLayers(features);
   },
@@ -197,6 +199,10 @@ export var FeatureManager = VirtualGrid.extend({
       .where(this.options.where)
       .fields(this.options.fields)
       .precision(this.options.precision);
+
+    if (this.options.requestParams) {
+      Util.extend(query.params, this.options.requestParams);
+    }
 
     if (this.options.simplifyFactor) {
       query.simplify(this._map, this.options.simplifyFactor);
@@ -233,7 +239,7 @@ export var FeatureManager = VirtualGrid.extend({
 
       pendingRequests--;
 
-      if (pendingRequests <= 0) {
+      if (pendingRequests <= 0 && this._visibleZoom()) {
         this._currentSnapshot = newSnapshot;
         // schedule adding features for the next animation frame
         Util.requestAnimFrame(Util.bind(function () {
