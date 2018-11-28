@@ -38,7 +38,7 @@ describe('L.esri.FeatureManager', function () {
     };
 
     server = sinon.fakeServer.create();
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
     oldRaf = L.Util.requestAnimFrame;
 
     MockLayer = L.esri.FeatureManager.extend({
@@ -756,6 +756,54 @@ describe('L.esri.FeatureManager', function () {
     server.respond();
   });
 
+  it('should wrap the updateFeatures method on the underlying service and refresh', function (done) {
+    server.respondWith('POST', 'http://gis.example.com/mock/arcgis/rest/services/MockService/MockFeatureServer/0/updateFeatures', JSON.stringify({
+      'updateResults': [{
+        'objectid': 1,
+        'success': true
+      }, {
+        'objectid': 2,
+        'success': true
+      }]
+    }));
+
+    layer.updateFeatures({
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        id: 1,
+        properties: {
+          foo: 'bar'
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [-121, 45]
+        }
+      }, {
+        type: 'Feature',
+        id: 2,
+        properties: {
+          foo: 'bar'
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [-121, 45]
+        }
+      }]
+    }, function (error, response) {
+      expect(response).to.deep.equal([{
+        'objectid': 1,
+        'success': true
+      }, {
+        'objectid': 2,
+        'success': true
+      }]);
+      done();
+    });
+
+    server.respond();
+  });
+
   it('should wrap the removeFeature method on the underlying service', function (done) {
     server.respondWith('POST', 'http://gis.example.com/mock/arcgis/rest/services/MockService/MockFeatureServer/0/deleteFeatures', JSON.stringify({
       'deleteResults': [{
@@ -821,9 +869,9 @@ describe('L.esri.FeatureManager', function () {
         'coordinates': [
           [
             [-109.02, 36.98],
-            [-109.02, 40.97],
-            [-102.06, 40.97],
             [-102.06, 37.01],
+            [-102.06, 40.97],
+            [-109.02, 40.97],
             [-109.02, 36.98]
           ]
         ]
